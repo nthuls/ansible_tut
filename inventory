@@ -1,1 +1,5 @@
-192.168.84.38
+[my_servers]
+192.168.84.38 
+
+[my_servers:vars]
+ansible_user=ubuntu
