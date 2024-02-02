@@ -1,17 +1,88 @@
 ---
-- name: Install Node Exporter
+- name: Install Prometheus
   hosts: all
   become: yes  # Use sudo
-  tasks:
-    - name: Download Node Exporter
-      get_url:
-        url: "https://github.com/prometheus/node_exporter/releases/download/v1.7.0/node_exporter-1.7.0.linux-amd64.tar.gz"
-        dest: "/tmp/node_exporter.tar.gz"
-      register: download
 
-    - name: Extract Node Exporter
+  tasks:
+    - name: Download Prometheus
+      get_url:
+        url: "https://github.com/prometheus/prometheus/releases/download/v2.49.1/prometheus-2.49.1.linux-amd64.tar.gz"
+        dest: "/tmp/prometheus-2.49.1.linux-amd64.tar.gz"
+
+    - name: Ensure prometheus user and group exist
+      block:
+        - name: Create prometheus group
+          group:
+            name: prometheus
+            state: present
+
+        - name: Create prometheus user
+          user:
+            name: prometheus
+            group: prometheus
+            createhome: no
+            shell: /bin/false
+
+    - name: Create directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: prometheus
+        group: prometheus
+      loop:
+        - /etc/prometheus
+        - /var/lib/prometheus
+
+    - name: Unpack prometheus binary
       unarchive:
-        src: "/tmp/node_exporter.tar.gz"
-        dest: "/opt"
+        src: "/tmp/prometheus-2.49.1.linux-amd64.tar.gz"
+        dest: "/tmp"
         remote_src: yes
-      when: download.changed     
+        creates: "/tmp/prometheus-2.49.1.linux-amd64/prometheus-files"
+
+    - name: Rename extracted Prometheus directory
+      command:
+        cmd: mv /tmp/prometheus-2.49.1.linux-amd64 /tmp/prometheus-files
+        creates: /tmp/prometheus-files
+
+    - name: Copy binaries to the installation directory
+      copy:
+        src: "/tmp/prometheus-files/{{ item }}"
+        dest: "/usr/local/bin/{{ item }}"
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+        remote_src: yes  # This tells Ansible to look for the files on the remote server
+      loop:
+        - prometheus
+        - promtool
+
+    - name: Copy consoles and console_libraries to /etc/prometheus
+      copy:
+        src: "/tmp/prometheus-files/{{ item }}"
+        dest: "/etc/prometheus/{{ item }}"
+        owner: prometheus
+        group: prometheus
+        remote_src: yes
+      loop:
+        - consoles
+        - console_libraries
+
+    - name: Set up prometheus.yml configuration
+      template:
+        src: prometheus.yml.j2
+        dest: /etc/prometheus/prometheus.yml
+        owner: prometheus
+        group: prometheus
+
+    - name: Set up Prometheus service file
+      template:
+        src: prometheus.service.j2
+        dest: /etc/systemd/system/prometheus.service
+
+    - name: Reload systemd and start Prometheus service
+      systemd:
+        daemon_reload: yes
+        name: prometheus
+        enabled: yes
+        state: started

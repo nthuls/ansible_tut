@@ -1,0 +1,30 @@
+---
+- name: Install Grafana on Ubuntu
+  hosts: all
+  become: yes  # Use sudo
+  vars:
+    grafana_version: "8.2.3"
+    grafana_package: "grafana-enterprise_{{ grafana_version }}_amd64.deb"
+    grafana_download_url: "https://dl.grafana.com/enterprise/release/{{ grafana_package }}"
+
+  tasks:
+    - name: Install dependencies
+      apt:
+        name:
+          - adduser
+          - libfontconfig1
+          - musl
+        state: present
+        update_cache: yes
+
+    - name: Download Grafana package
+      get_url:
+        url: "{{ grafana_download_url }}"
+        dest: "/tmp/{{ grafana_package }}"
+    
+    - name: Install Grafana package with dpkg
+      ansible.builtin.shell:
+        cmd: "dpkg -i /tmp/{{ grafana_package }} || apt-get install -f -y"
+      args:
+        executable: /bin/bash
+
