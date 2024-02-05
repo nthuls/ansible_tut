@@ -1,0 +1,32 @@
+---
+- name: Automate PostgreSQL Setup on Ubuntu 20.04
+  hosts: all
+  become: true
+  vars:
+    postgres_user: test
+    postgres_database: test
+    postgres_password: 'newpassword' # Change this as necessary
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install PostgreSQL and Contrib Packages
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+        state: present
+
+    - name: Ensure PostgreSQL is running and enabled on boot
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Install psycopg2-binary via pip
+      ansible.builtin.pip:
+        name: psycopg2-binary
+        state: present
+
